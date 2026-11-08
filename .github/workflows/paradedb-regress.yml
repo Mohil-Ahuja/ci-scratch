@@ -1,0 +1,83 @@
+name: paradedb-regress
+on:
+  push:
+    paths: [".github/workflows/paradedb-regress.yml"]
+  workflow_dispatch:
+env:
+  REF: fix/aggregate-null-empty-order
+  BASE: 10f6f520029566f3c2130881ca8f0072daf3afcb
+  TEST: issue_7236
+  CHANGED: pg_search/src/postgres/customscan/aggregatescan/exec.rs
+jobs:
+  regress:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v4
+        with:
+          repository: Mohil-Ahuja/paradedb
+          ref: ${{ env.REF }}
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends lsof build-essential clang libclang-dev lld flex bison pkg-config \
+            libreadline-dev zlib1g-dev libssl-dev libkrb5-dev liblz4-dev libzstd-dev libcurl4-openssl-dev libopenblas-dev \
+            libfontconfig1-dev libicu-dev
+      - name: Toolchain
+        uses: ./.github/actions/setup-pg-search-toolchain
+        with:
+          pg_version: 18
+          rust_components: rustfmt, clippy
+          cache_save: "true"
+          cache_on_failure: "true"
+      - name: Cache pgrx Postgres
+        id: pgcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pgrx/18.*/pgrx-install
+          key: pgrx-pg18-${{ hashFiles('Cargo.lock') }}
+      - name: Postgres
+        uses: ./.github/actions/setup-postgres
+        with:
+          pg_version: 18
+          pg_impl: pgrx
+          pgrx_cache_hit: ${{ steps.pgcache.outputs.cache-hit == 'true' }}
+      - name: Preload pg_search
+        working-directory: /home/runner/.pgrx/data-18/
+        run: sed -i "s/^#shared_preload_libraries = .*/shared_preload_libraries = 'pg_search'/" postgresql.conf
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy -p pg_search --all-targets -- -D warnings --no-deps
+      - name: Generate expected output with the fix
+        working-directory: pg_search
+        run: cargo pgrx regress pg18 --add "$TEST"
+      - name: Show expected output
+        run: cat "pg_search/tests/pg_regress/expected/$TEST.out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expected
+          path: pg_search/tests/pg_regress/expected/${{ env.TEST }}.out
+          retention-days: 3
+      - name: Rerun with the fix
+        working-directory: pg_search
+        run: cargo pgrx regress pg18 --resetdb "$TEST"
+      - name: Aggregate tests with the fix
+        working-directory: pg_search
+        continue-on-error: true
+        run: cargo pgrx regress pg18 --resetdb aggregate
+      - name: New test must fail without the fix
+        run: |
+          git fetch --depth=1 https://github.com/paradedb/paradedb.git "$BASE"
+          git checkout FETCH_HEAD -- "$CHANGED"
+          git diff --cached --stat
+          cd pg_search
+          if cargo pgrx regress pg18 --resetdb "$TEST"; then
+            echo "TEST PASSED WITHOUT THE FIX"
+            exit 1
+          fi
+          echo "TEST FAILED WITHOUT THE FIX, AS EXPECTED"
