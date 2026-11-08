@@ -16,7 +16,7 @@ sentry_sdk.init(
 
 url = "https://deploy-bot:s3cr3t@api.example.com/graphql?access_token=tok_live_123"
 with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-    rsps.post(re.compile(r"https://api\.example\.com/graphql.*"), json={"errors": [{"message": "boom"}]})
+    rsps.post(re.compile(r"https://.*api\.example\.com/graphql.*"), json={"errors": [{"message": "boom"}]})
     client = Client(transport=RequestsHTTPTransport(url=url))
     try:
         client.execute(gql("{ me { id } }"))
@@ -33,3 +33,9 @@ print("request:", events[0]["request"])
 print("http breadcrumbs:", [b.get("data", {}).get("url") for b in events[0].get("breadcrumbs", {}).get("values", []) if b.get("type") == "http"])
 from sentry_sdk.utils import parse_url
 print("parse_url:", parse_url(url, sanitize=False))
+u = events[0]["request"]["url"]
+print("username in event url:", "deploy-bot" in u)
+print("password in event url:", "s3cr3t" in u)
+print("token in event url:", "tok_live_123" in u)
+print("url with colon-at spaced:", u.replace("://", ":// ").replace(":s3", " : s3").replace("@", " @ "))
+print("event count:", len(events), "| exception type:", events[0]["exception"]["values"][-1]["type"])
