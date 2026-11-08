@@ -1,0 +1,16 @@
+name: gql-url
+on:
+  workflow_dispatch:
+  push:
+    paths: ["gql_url_repro.py", ".github/workflows/gql.yml"]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "sentry-sdk @ git+https://github.com/getsentry/sentry-python@master" "gql[requests]" responses
+      - run: pip list | grep -i -E "sentry|gql|responses"
+      - run: python gql_url_repro.py
