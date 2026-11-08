@@ -1,4 +1,5 @@
 # Repro: the gql integration sends the GraphQL transport URL, credentials included, as event.request.url.
+import re
 import sentry_sdk
 from sentry_sdk.integrations.gql import GQLIntegration
 from gql import Client, gql
@@ -15,12 +16,11 @@ sentry_sdk.init(
 
 url = "https://deploy-bot:s3cr3t@api.example.com/graphql?access_token=tok_live_123"
 with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-    rsps.post("https://api.example.com/graphql", json={"errors": [{"message": "boom"}]})
+    rsps.post(re.compile(r"https://api\.example\.com/graphql.*"), json={"errors": [{"message": "boom"}]})
     client = Client(transport=RequestsHTTPTransport(url=url))
     try:
         client.execute(gql("{ me { id } }"))
     except Exception as e:
-        import traceback; traceback.print_exc()
         print('caught:', type(e).__name__, e)
         sentry_sdk.capture_exception()
 
