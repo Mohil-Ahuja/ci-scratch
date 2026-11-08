@@ -1,0 +1,55 @@
+name: lakekeeper-io
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        default: wip/read-without-head-check
+  push:
+    paths:
+      - .github/workflows/lakekeeper-io.yml
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: --cfg tracing_unstable -D warnings -C debuginfo=0
+  LAKEKEEPER_TEST__S3_BUCKET: tests
+  LAKEKEEPER_TEST__S3_VERSIONED_BUCKET: tests-versioned
+  LAKEKEEPER_TEST__S3_REGION: local
+  LAKEKEEPER_TEST__S3_ACCESS_KEY: minio-root-user
+  LAKEKEEPER_TEST__S3_SECRET_KEY: minio-root-password
+  LAKEKEEPER_TEST__S3_ENDPOINT: http://localhost:9000
+  LAKEKEEPER_TEST__S3_CORS_ALLOW_ALL: "1"
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Mohil-Ahuja/lakekeeper
+          ref: ${{ inputs.ref || 'wip/read-without-head-check' }}
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio-root-user -e MINIO_ROOT_PASSWORD=minio-root-password \
+            pgsty/silo:RELEASE.2026-09-03T13-18-01Z server /data
+          for i in 1 2 3 4 5 6 7 8 9 10; do curl -sfI http://localhost:9000/minio/health/live && break; sleep 5; done
+          docker exec minio /usr/bin/mc alias set local http://localhost:9000 minio-root-user minio-root-password
+          docker exec minio /usr/bin/mc mb local/tests
+          docker exec minio /usr/bin/mc mb local/tests-versioned
+          docker exec minio /usr/bin/mc version enable local/tests-versioned
+      - name: Install toolchain
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add rustfmt clippy
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy all features
+        run: cargo clippy -p lakekeeper-io --all-targets --all-features -- -D warnings
+      - name: Library tests
+        run: cargo test -p lakekeeper-io --all-features --lib
+      - name: Integration tests on S3 and memory
+        run: cargo test -p lakekeeper-io --all-features --test integration_tests -- _memory _s3
+      - name: Overwrite race five times, with counts
+        run: |
+          for i in 1 2 3 4 5; do
+            cargo test -p lakekeeper-io --all-features --test integration_tests -- test_read_during_overwrite_memory test_read_during_overwrite_s3 --nocapture --test-threads=1 2>&1 | grep -E 'reads during|test result|FAILED|panicked'
+          done
