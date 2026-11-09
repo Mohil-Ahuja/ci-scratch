@@ -53,16 +53,6 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy -p pg_search --all-targets -- -D warnings --no-deps
-      - name: Generate expected output with the fix
-        working-directory: pg_search
-        run: cargo pgrx regress pg18 --add "$TEST"
-      - name: Show expected output
-        run: cat "pg_search/tests/pg_regress/expected/$TEST.out"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: expected
-          path: pg_search/tests/pg_regress/expected/${{ env.TEST }}.out
-          retention-days: 3
       - name: Rerun with the fix
         working-directory: pg_search
         run: cargo pgrx regress pg18 --resetdb "$TEST"
