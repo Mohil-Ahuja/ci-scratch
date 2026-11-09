@@ -4,7 +4,7 @@ on:
     paths: [".github/workflows/sentry-gql.yml"]
   workflow_dispatch:
 env:
-  REF: fix/gql-sanitize-transport-url
+  REF: wip-gql-data-collection
   BASE: d565fed3
 jobs:
   lint:
@@ -29,7 +29,7 @@ jobs:
       - name: New tests must fail without the fix
         run: |
           git checkout "$BASE" -- sentry_sdk/integrations/gql.py
-          if tox -e py3.14-gql-latest -- -k transport_url 2>&1 | tee out.log; [ "${PIPESTATUS[0]}" -eq 0 ]; then
+          if tox -e py3.14-gql-latest -- -k "transport_url and data_collection" 2>&1 | tee out.log; [ "${PIPESTATUS[0]}" -eq 0 ]; then
             echo "TESTS PASSED WITHOUT THE FIX"; exit 1
           fi
           grep -E '^(FAILED|PASSED|=+ .*(passed|failed))' out.log
