@@ -1,0 +1,34 @@
+name: modelence-auth
+on:
+  push:
+    paths: [".github/workflows/modelence-auth.yml"]
+  workflow_dispatch:
+env:
+  REF: wip-auth-hooks
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/modelence
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: Mohil-Ahuja/modelence, ref: "${{ env.REF }}", fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run lint:check
+      - run: npm run format:check
+      - run: npx tsc --noEmit -p .
+      - run: npm run test
+      - run: npm run build
+      - name: New tests must fail without the fix
+        run: |
+          git remote add upstream https://github.com/modelence/modelence
+          git fetch -q upstream main
+          for f in src/auth/login.ts src/auth/signup.ts src/auth/verification.ts src/auth/providers/oauthCommon.ts src/app/authConfig.ts; do
+            git checkout upstream/main -- "$f"
+          done
+          git show HEAD:packages/modelence/src/auth/utils.ts > src/auth/utils.ts
+          npx vitest run src/auth/login.test.ts src/auth/signup.test.ts src/auth/verification.test.ts src/auth/providers/oauthCommon.test.ts -t "hook" 2>&1 | tee out.log || true
+          grep -E "(✓|×|FAIL|Tests ).*" out.log | grep -iE "hook|Tests " || true
