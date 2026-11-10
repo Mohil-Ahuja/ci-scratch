@@ -1,0 +1,17 @@
+name: sentry-gql-processors
+on:
+  push:
+    paths: [".github/workflows/sentry-gql-processors.yml", "repro/gql_processors.py"]
+  workflow_dispatch:
+jobs:
+  repro:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { repository: getsentry/sentry-python, ref: f73ce4e9, path: sentry-python }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ./sentry-python "gql[requests]==4.4.0" responses
+      - run: python -c "import sentry_sdk; print(sentry_sdk.VERSION)"
+      - run: python repro/gql_processors.py
