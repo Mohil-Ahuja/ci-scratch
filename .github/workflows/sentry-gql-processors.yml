@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
-        with: { repository: getsentry/sentry-python, ref: f73ce4e9, path: sentry-python }
+        with: { repository: getsentry/sentry-python, ref: f73ce4e9b91d6d4fe470889df3f0d15525d13c8e, path: sentry-python }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install ./sentry-python "gql[requests]==4.4.0" responses
