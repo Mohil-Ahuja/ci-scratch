@@ -32,3 +32,4 @@ jobs:
           git show HEAD:packages/modelence/src/auth/utils.ts > src/auth/utils.ts
           npx vitest run src/auth/login.test.ts src/auth/signup.test.ts src/auth/verification.test.ts src/auth/providers/oauthCommon.test.ts -t "hook" 2>&1 | tee out.log || true
           grep -E "(✓|×|FAIL|Tests ).*" out.log | grep -iE "hook|Tests " || true
+# nits run
