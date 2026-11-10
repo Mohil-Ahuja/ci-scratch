@@ -75,3 +75,20 @@ print("processors after the failing query:", len(scope._event_processors))
 ok_pile_up = after - before == 100
 ok_leak = (unrelated.get("request") or {}).get("api_target") == "graphql"
 print("RESULT processors_pile_up=%s unrelated_event_tagged_as_graphql=%s" % (ok_pile_up, ok_leak))
+
+# Does gql's churn wipe processors that other code added to the scope?
+with sentry_sdk.isolation_scope() as request_scope:
+    def app_processor(event, hint):
+        event.setdefault("tags", {})["added_by_app"] = "yes"
+        return event
+
+    request_scope.add_event_processor(app_processor)
+    for i in range(21):
+        run_query("query R%d { example }" % i, {"data": {"example": i}})
+    try:
+        raise ValueError("error after 21 queries")
+    except ValueError:
+        sentry_sdk.capture_exception()
+    sentry_sdk.flush()
+    print("app processor still on the scope after 21 queries:", app_processor in request_scope._event_processors)
+    print("event tags after 21 queries:", json.dumps(events[-1].get("tags")))
