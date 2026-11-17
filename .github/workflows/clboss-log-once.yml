@@ -20,7 +20,7 @@ jobs:
           grep -E "^# (TOTAL|PASS|FAIL|ERROR)" test-suite.log
       - name: Mutant (always Warn) must fail the test
         run: |
-          perl -0pi -e 's/first_failure \? Warn : Debug/Warn/' Boss/Mod/SwapManager.cpp
+          perl -0pi -e 's/first_failure \? Warn : Debug/first_failure ? Warn : Warn/' Boss/Mod/SwapManager.cpp
           grep -c "first_failure ? Warn" Boss/Mod/SwapManager.cpp || true
           make -j4 tests/boss/test_swapmanager
           if ./tests/boss/test_swapmanager > m.log 2>&1; then echo "MUTANT PASSED"; exit 1; fi
