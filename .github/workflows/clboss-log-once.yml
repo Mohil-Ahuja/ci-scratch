@@ -1,0 +1,27 @@
+name: clboss-log-once
+on:
+  push:
+    paths: [".github/workflows/clboss-log-once.yml"]
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: Mohil-Ahuja/clboss, ref: wip-log-once }
+      - run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q autoconf autoconf-archive automake build-essential libcurl4-openssl-dev libev-dev libsqlite3-dev libtool libunwind-dev pkg-config
+      - run: autoreconf -fi && ./configure --disable-valgrind
+      - run: make -j4
+      - name: make check
+        run: |
+          make -j4 check-TESTS || { cat tests/boss/test_swapmanager.log | tail -40; exit 1; }
+          grep -E "^# (TOTAL|PASS|FAIL|ERROR)" test-suite.log
+      - name: Mutant (always Warn) must fail the test
+        run: |
+          perl -0pi -e 's/first_failure \? Warn : Debug/Warn/' Boss/Mod/SwapManager.cpp
+          grep -c "first_failure ? Warn" Boss/Mod/SwapManager.cpp || true
+          make -j4 tests/boss/test_swapmanager
+          if ./tests/boss/test_swapmanager > m.log 2>&1; then echo "MUTANT PASSED"; exit 1; fi
+          grep -m2 -i assert m.log; echo "MUTANT FAILED, AS EXPECTED"
