@@ -1,0 +1,36 @@
+name: sentry-gql-scope
+on:
+  push:
+    paths: [".github/workflows/sentry-gql-scope.yml"]
+  workflow_dispatch:
+env:
+  REF: fix/gql-scope-event-processor
+  BASE: e9c62e53
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: Mohil-Ahuja/sentry-python, ref: "${{ env.REF }}" }
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run ruff check tests sentry_sdk
+      - run: uv run ruff format --diff tests sentry_sdk
+      - run: uv run --group typing mypy sentry_sdk
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: Mohil-Ahuja/sentry-python, ref: "${{ env.REF }}", fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10\n3.14" }
+      - run: pip install tox
+      - name: With the fix
+        run: tox -e py3.10-gql-v3.4.1,py3.10-gql-v4.4.0,py3.14-gql-v4.4.0,py3.14-gql-latest
+      - name: New tests must fail without the fix
+        run: |
+          git checkout "$BASE" -- sentry_sdk/integrations/gql.py
+          tox -e py3.14-gql-latest -- -k "outlive_query or other_event_processors or response_context_type" 2>&1 | tee out.log || true
+          grep -E '^(FAILED|PASSED|=+ .*(passed|failed))' out.log
+          n=$(grep -c '^FAILED' out.log || true)
+          echo "failed without the fix: $n of 3"
+          [ "$n" -eq 3 ]
